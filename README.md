@@ -9,10 +9,11 @@ How to get the application running
 ------------------------------------
 
 1. Install everything
-* <a href="http://redis.io">Redis</a> must be installed and running.
-* <a href="http://nodejs.org">Node.js</a> must be installed
-* Node.js plugin <a href="http://socket.io">socket.io</a> installed (npm install socket.io).
-* Node.js plugin <a href="https://github.com/mranney/node_redis">redis</a> installed (npm install hiredis redis).
+
+ * <a href="http://redis.io">Redis</a> must be installed and running.
+ * <a href="http://nodejs.org">Node.js</a> must be installed
+ * Node.js plugin <a href="http://socket.io">socket.io</a> installed (npm install socket.io).
+ * Node.js plugin <a href="https://github.com/mranney/node_redis">redis</a> installed (npm install hiredis redis).
 
 
 2. Start the service via:
@@ -22,12 +23,12 @@ How to get the application running
 
 3. Start the demonstration client via:
 
-$ python -m SimpleHTTPServer
+<code>$ python -m SimpleHTTPServer</code>
 
 in the client/ directory
 
 Setting up the Client
-------------------------------------
+-----------------------
 
 The browser client is a jQuery plugin. It requires jQuery, <a href="http://jquery-json.googlecode.com/">JQuery JSON</a> and Socket.io (the socket.io-client js can be used, or the version served by the service at /socket.io/socket.io.js)
 
