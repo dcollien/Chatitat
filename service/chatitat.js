@@ -12,11 +12,13 @@ var settings = require('./settings');
 // start server
 app.listen(settings.port);
 
+// responds with a json encoding of the chat history for a channel
 function historyResponse(historyParts, req, res) {
 	if (historyParts.length === 0) {
 		res.writeHead(404);
 		res.end('A channel needs to be specified');
 	} else {
+		// choose the channel and stop index from the path parts
 		var channel = historyParts[0];
 		var start = 0;
 		var stop;
@@ -32,6 +34,8 @@ function historyResponse(historyParts, req, res) {
 		}
 
 		res.writeHead(200);
+
+		// create a redis client to connect
 		var historyClient = redis.createClient();
 		historyClient.lrange(settings.history + '-' + channel, start, stop, function(err, result) {
 			var i;
@@ -42,6 +46,7 @@ function historyResponse(historyParts, req, res) {
 
 				if (numCompleted === result.length) {
 					res.end(']\n');
+					historyClient.quit();
 				} else {
 					res.write(',\n');
 				}
@@ -64,6 +69,7 @@ function historyResponse(historyParts, req, res) {
 
 			if (result.length === 0) {
 				res.end(']\n');
+				historyClient.quit();
 			}
 		});
 	}
@@ -87,6 +93,8 @@ function handler(req, res) {
 			res.end(SessionController.createHash(hmacParts[1], hmacParts[2], hmacParts[3], hmacParts[0]));
 		}
 	} else if (req.url.indexOf('/history/') === 0) {
+		// report a channel's message history
+
 		var user, channel, issued, signature;
 		var historyParts = pathname.split(/\//).slice(2);
 
@@ -108,7 +116,7 @@ function handler(req, res) {
 		}
 	} else {
 		res.writeHead(200);
-		res.end('Connect via client');
+		res.end('Connect via a chat client');
 	}
 }
 
@@ -236,11 +244,10 @@ SessionController.prototype.destroyRedis = function() {
 };
 
 io.sockets.on('connection', function (socket) {
-	// the actual socket callback
-	console.log(socket.id);
+	// on a socket connecting
 
 	socket.on('chat', function (data) {
-		// receiving chat messages
+		// receiving a chat message
 		var msg = JSON.parse(data);
 
 		socket.get('sessionController', function(err, sessionController) {
@@ -271,6 +278,8 @@ io.sockets.on('connection', function (socket) {
 	});
 
 	socket.on('join', function(data) {
+		// joining the channel
+
 		var msg = JSON.parse(data);
 		var sessionController = SessionController.createSession(msg);
 		socket.set('sessionController', sessionController);
@@ -282,11 +291,19 @@ io.sockets.on('connection', function (socket) {
 		}
 	});
 
-	socket.on('disconnect', function() { // disconnect from a socket - might happen quite frequently depending on network quality
+	socket.on('disconnect', function() {
+		// disconnect from a socket - might happen quite frequently depending on network quality
+
 		socket.get('sessionController', function(err, sessionController) {
 			if (sessionController === null) return;
 			sessionController.unsubscribe();
-			var leaveMessage = JSON.stringify({action: 'control', user: sessionController.user, msg: ' went offline.' });
+			var leaveMessage = {
+				action: 'control',
+				name: sessionController.name,
+				user: sessionController.user,
+				msg: 'disconnect',
+				timestamp: Date.now()
+			};
 			sessionController.publish(leaveMessage);
 			sessionController.destroyRedis();
 		});

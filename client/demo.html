@@ -34,21 +34,24 @@
     </style>
 </head>
 <body>
-    <input type="text" id="username" placeholder="Username"><br/>
-    <select id="channel">
-        <option value="channel1">Channel 1</option>
-        <option value="channel2">Channel 2</option>
-        <option value="channel3">Channel 3</option>
-    </select><br/>
+    <div id="start_area">
+        <input type="text" id="username" placeholder="Username"><br/>
+        <select id="channel">
+            <option value="channel1">Channel 1</option>
+            <option value="channel2">Channel 2</option>
+            <option value="channel3">Channel 3</option>
+        </select><br/>
 
-    <button type="button" id="start">Start Chat</button>
-    <br/><br/>
+        <button type="button" id="start">Start Chat</button>
+        <br/><br/>
+    </div>
 
     <div id="chat" style="width: 300px; height: 400px;">
     </div>
 
     <script type="text/javascript">
         $('#start').click(function (argument) {
+            $('#start_area').hide();
             $('#chat').chatitat({
                 // issued: "1333333333337", // timestamp at which the authentication was issued
                 // signature: "HASH", // a base64 digest of a SHA256 HMAC using
@@ -57,7 +60,6 @@
                 userName: $('#username').val(),
                 host: 'http://localhost:8020',
                 channel: $('#channel').val(),
-
                 errorCallback: function(msg, user, name, channel) {
                     console.log('Error', msg, user, name, channel);
                 },

@@ -36,12 +36,15 @@
         if (options.receiveCallback) {
             receiveHandler = options.receiveCallback;
         }
-
+        
         if (!options.rejoinMessage) {
             options.rejoinMessage = ' reconnected.';
         }
         if (!options.joinMessage) {
             options.joinMessage = ' connected.';
+        }
+        if (!options.disconnectMessage) {
+            options.disconnectMessage = ' disconnected.';
         }
         if (!options.userName) {
             options.userName = options.userID;
@@ -73,7 +76,7 @@
         $channel.append($input);
 
         container.append($channel);
-        
+
         var socket = io.connect(options.host, options.io);
         var channel = options.channel;
         var hash = options.signature;
@@ -124,34 +127,38 @@
             messageView.find('.chat-time').text((new Date()).toString("HH:mm:ss"));
             
             switch (action) {
-                case 'message': var matches;
-                                var messageLines = message.msg.split(/\n/);
-                                // someone starts chat with /me ... 
-                                if (matches = message.msg.match(/^\s*[\/\\]me\s(.*)/)) {
-                                    messageView.find('.chat-user').text(message.name + ' ' + matches[1]);
-                                    messageView.find('.chat-user').css('font-weight', 'bold');
-                                // normal chat message                              
-                                } else {
-                                    var messageContainer = messageView.find('.chat-message');
-                                    messageView.find('.chat-user').text(message.name);
-                                    messageContainer.text(': ');
-                                    $.each(messageLines, function(i, val) {
-                                        messageContainer.append($('<div class="chat-message-line">').text(val));
-                                    });
-                                }
-                                break;
-                case 'control': messageView.find('.chat-user').text(message.name);
+                case 'message': 
+                    var matches;
+                    var messageLines = message.msg.split(/\n/);
+                    // someone starts chat with /me ... 
+                    if (matches = message.msg.match(/^\s*[\/\\]me\s(.*)/)) {
+                        messageView.find('.chat-user').text(message.name + ' ' + matches[1]);
+                        messageView.find('.chat-user').css('font-weight', 'bold');
+                    // normal chat message                              
+                    } else {
+                        var messageContainer = messageView.find('.chat-message');
+                        messageView.find('.chat-user').text(message.name);
+                        messageContainer.text(': ');
+                        $.each(messageLines, function(i, val) {
+                            messageContainer.append($('<div class="chat-message-line">').text(val));
+                        });
+                    }
+                    break;
+                case 'control':
+                    messageView.find('.chat-user').text(message.name);
+                    
+                    if (message.msg === 'join') {
+                        messageView.find('.chat-message').text(options.joinMessage);
+                    } else if (message.msg === 'rejoin') {
+                        messageView.find('.chat-message').text(options.rejoinMessage);
+                    } else if (message.msg === 'disconnect') {
+                        messageView.find('.chat-message').text(options.disconnectMessage);
+                    } else {
+                        messageView.find('.chat-message').text(message.msg);
+                    }
 
-                                if (message.msg === 'join') {
-                                    messageView.find('.chat-message').text(options.joinMessage);
-                                } else if (message.msg === 'rejoin') {
-                                    messageView.find('.chat-message').text(options.rejoinMessage);
-                                } else {
-                                    messageView.find('.chat-message').text(message.msg);
-                                }
-
-                                messageView.addClass('chat-control');
-                                break;
+                    messageView.addClass('chat-control');
+                    break;
             }
             
             // color own user:
