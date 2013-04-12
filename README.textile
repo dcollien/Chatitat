@@ -29,12 +29,11 @@ The browser client is a jQuery plugin. It requires jQuery, <a href="http://jquer
 The jQuery plugin can be attached to an element as follows:
 <pre>
 $('#chat').chatitat({
-
     // optional authentication information (used if a shared secret is supplied to the service)
     issued: "1333333333337", // timestamp at which the authentication was issued
     signature: "HASH", // a base64 digest of a SHA256 HMAC using
                        // the server's secret salt and userID + '|' + channel + '|' + issued
-
+    
     // connection
     userID: 'fred.flintstone',
     userName: 'Fred Flintstone',
@@ -97,11 +96,13 @@ The path:
 <code>/history/channel</code>
 will list the entire chat history buffer for the given channel as JSON.
 
-This requires the same HMAC authentication via query string. e.g.
-<code>/history/channel?user=fred.flintstone&issued=1333333333337&signature=HMAC+HASH</code>
-
 <code>/history/channel/10</code>
 will list the 10 oldest history entries in the channel history buffer.
+
+<hr>
+
+This requires the same HMAC authentication via query string. e.g.
+<code>/history/channel?user=fred.flintstone&issued=1333333333337&signature=HMAC+HASH</code>
 
 <b>Note:</b> If a DELETE instead of a GET request is used, the history will be deleted.
 <code>/history/channel/10</code>
