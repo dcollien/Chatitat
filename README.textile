@@ -39,7 +39,7 @@ $('#chat').chatitat({
     userName: 'Fred Flintstone',
     host: 'http://localhost:8020',
     channel: 'bedrock',
-
+    
     // callbacks, for convenience
     errorCallback: function(msg, user, name, channel) {
         console.log('Error', msg, user, name, channel);
