@@ -1,10 +1,13 @@
-# Chat based on Node.js using Redis Pub/Sub + socket.io
+Chat based on Node.js using Redis Pub/Sub + socket.io
+======================================================
 
 A simple real-time chat service and jQuery plugin using redis Pub/Sub and socket.io.
 
 Supports HMAC authentication, multiple chat rooms and chat history.
 
-# How to get the application running
+How to get the application running
+------------------------------------
+
 1. Install everything
 * <a href="http://redis.io">Redis</a> must be installed and running.
 * <a href="http://nodejs.org">Node.js</a> must be installed
@@ -23,7 +26,8 @@ $ python -m SimpleHTTPServer
 
 in the client/ directory
 
-# Setting up the Client
+Setting up the Client
+------------------------------------
 
 The browser client is a jQuery plugin. It requires jQuery, <a href="http://jquery-json.googlecode.com/">JQuery JSON</a> and Socket.io (the socket.io-client js can be used, or the version served by the service at /socket.io/socket.io.js)
 
@@ -54,7 +58,9 @@ The jQuery plugin can be attached to an element as follows:
     });
 
 
-# Authentication
+Authentication
+---------------
+
 The chat service uses a shared secret between the server hosting the browser client page and the chat service. This shared secret is never exposed to the client and is used as a salt to hash the user id, channel and issued timestamp using a SHA256 HMAC.
 
 This hash signature is encoded as base64 and sent to the client, which can use this hash to prove the user id and channel are indeed those issued by the server (and not forgeries). The hash expires after the sessionLength specified in the service's settings.js file. This is policed by sending the time of issue as a unix timestamp (which is also part of the signature hash).
@@ -74,7 +80,9 @@ e.g.
     };
 
 
-# REST API
+REST API
+--------
+
 The chat service also has a REST API. This can be used for:
 * Creating an HMAC from user, channel and issued stamp
 * Retrieving a channel's chat history for archival
@@ -106,7 +114,9 @@ This requires the same HMAC authentication via query string. e.g.
 <code>/history/channel/10</code>
 will delete the 10 oldest history entries in the buffer.
 
-# FAQ
+FAQ
+----
+
 #### Why is it called Chatitat?
 I don't know. Can you think of a better name?
 
