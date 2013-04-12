@@ -12,9 +12,7 @@ var settings = require('./settings');
 // start server
 app.listen(settings.port);
 
-function historyResponse(pathname, req, res) {
-	var historyParts = pathname.split(/\//).slice(2);
-
+function historyResponse(historyParts, req, res) {
 	if (historyParts.length === 0) {
 		res.writeHead(404);
 		res.end('A channel needs to be specified');
@@ -90,17 +88,20 @@ function handler(req, res) {
 		}
 	} else if (req.url.indexOf('/history/') === 0) {
 		var user, channel, issued, signature;
+		var historyParts = pathname.split(/\//).slice(2);
 
 		user = parsedURL.query.user;
-		channel = parsedURL.query.channel;
+		channel = historyParts[0];
 		issued = parsedURL.query.issued;
 		signature = parsedURL.query.signature;
 
 		// retrieve (GET) or purge (DELETE) chat history for a channel
 		// /history/channel
 		// /history/channel/length oldest to newest from 0 to stopIndex inclusive
-		if (SessionController.checkHash(signature, user, channel, issued)) {
-			historyResponse(pathname, req, res);
+		if (!settings.secret) {
+			historyResponse(historyParts, req, res);
+		} else if (SessionController.checkHash(signature, user, channel, issued)) {
+			historyResponse(historyParts, req, res);
 		} else {
 			res.writeHead(403);
 			res.end('Authentication failed');
@@ -145,7 +146,7 @@ SessionController.checkHash = function(msgHash, user, channel, issued) {
 	msgHash = msgHash.replace(/ /, '+'); // in case URL encoding has turned + into space
 
 	var hash = SessionController.createHash(user, channel, issued, settings.secret);
-	
+
 	// ensure issued is a number
 	issued = parseInt(issued, 10);
 	return (hash === msgHash && (Date.now() - issued) < (settings.sessionLength * 60));
