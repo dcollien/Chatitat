@@ -1,0 +1,25 @@
+<h1>Chat based on Node.js using Redis Pub/Sub + socket.io</h1>
+A simple real-time chat service and jQuery plugin using redis Pub/Sub and socket.io.
+
+Supports HMAC authentication, multiple chat rooms and chat history.
+
+<h1>How to get the application running</h1>
+<ul>
+<li><a href="http://redis.io">Redis</a> must be installed and running.
+<li><a href="http://nodejs.org">Node.js</a> must be installed
+<li>Node.js plugin <a href="http://socket.io">socket.io</a> must be in place (npm install socket.io).
+<li>Node.js plugin <a href="https://github.com/mranney/node_redis">redis</a> installed (npm install hiredis redis).
+</ul>
+
+start the service via:
+
+$ node chatitat.js
+
+start the client via:
+
+$ python -m SimpleHTTPServer
+in the client directory
+
+
+<h1>Credits</h1>
+This was based on <a href="https://github.com/steffenwt/nodejs-pub-sub-chat-demo">nodejs-pub-sub-chat-demo</a>.

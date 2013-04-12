@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src='http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js'></script>
+    <script src='http://jquery-json.googlecode.com/files/jquery.json-2.2.min.js'></script>
+    <script src='http://datejs.googlecode.com/svn/trunk/build/date.js'></script>
+    <script src="socket.io.js"></script>
+    <script src="jquery.chatitat.js"></script>
+    <link rel="stylesheet" type="text/css" href="chatitat.css">
+    <title>Chatitat Demo</title>
+
+    <style type="text/css">
+        * {
+            font-family: Georgia;
+        }
+
+        a {
+            color: #000;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+
+        .chat-messages {
+            height: 400px;
+        }
+
+        .chat-input {
+            height: 68px;
+        }
+    </style>
+</head>
+<body>
+    <input type="text" id="username" placeholder="Username"><br/>
+    <select id="channel">
+        <option value="channel1">Channel 1</option>
+        <option value="channel2">Channel 2</option>
+        <option value="channel3">Channel 3</option>
+    </select><br/>
+
+    <button type="button" id="start">Start Chat</button>
+    <br/><br/>
+
+    <div id="chat" style="width: 300px; height: 400px;">
+    </div>
+
+    <script type="text/javascript">
+        $('#start').click(function (argument) {
+            $('#chat').chatitat({
+                userID: $('#username').val(),
+                userName: $('#username').val(),
+                host: 'http://localhost:8020',
+                channel: $('#channel').val()
+            });
+        })
+    </script>
+</body>
+</html>
