@@ -73,8 +73,8 @@
         $channel.append($input);
 
         container.append($channel);
-
-        var socket = io.connect(options.host);
+        
+        var socket = io.connect(options.host, options.io);
         var channel = options.channel;
         var hash = options.signature;
         var name = options.userName;

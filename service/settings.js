@@ -1,6 +1,6 @@
 module.exports = {
     //secret: 'some long secret shared key for authenticating sessions',
-
+    
     sessionLength: 60*60*24, // 24h time out
     port: 8020,
     messageId: 'chat-id', // incrementing unique id for messages

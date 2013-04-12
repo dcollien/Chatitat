@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <script src='http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js'></script>
-    <script src='http://jquery-json.googlecode.com/files/jquery.json-2.2.min.js'></script>
-    <script src='http://datejs.googlecode.com/svn/trunk/build/date.js'></script>
+    <script src='//ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js'></script>
+    <script src='//jquery-json.googlecode.com/files/jquery.json-2.2.min.js'></script>
+    <script src='//datejs.googlecode.com/svn/trunk/build/date.js'></script>
     <script src="socket.io.js"></script>
     <script src="jquery.chatitat.js"></script>
     <link rel="stylesheet" type="text/css" href="chatitat.css">
@@ -51,13 +51,13 @@
         $('#start').click(function (argument) {
             $('#chat').chatitat({
                 // issued: "1333333333337", // timestamp at which the authentication was issued
-                // signature: "HASH", // a SHA256 HMAC of the server's secret and: userID + ',' + channel + ',' + issued
-                
+                // signature: "HASH", // a base64 digest of a SHA256 HMAC using
+                //            the server's secret salt and userID + '|' + channel + '|' + issued
                 userID: $('#username').val(),
                 userName: $('#username').val(),
                 host: 'http://localhost:8020',
                 channel: $('#channel').val(),
-                
+
                 errorCallback: function(msg, user, name, channel) {
                     console.log('Error', msg, user, name, channel);
                 },

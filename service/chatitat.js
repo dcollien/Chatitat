@@ -1,9 +1,10 @@
 // get required libraries
 var 
 	app = require('http').createServer(handler),
-	Crypto = require('cryptojs').Crypto,
+	crypto = require('crypto'),
 	io = require('socket.io').listen(app),
-	redis = require('redis');
+	redis = require('redis'),
+	url = require('url');
 
 // import settings
 var settings = require('./settings');
@@ -11,15 +12,103 @@ var settings = require('./settings');
 // start server
 app.listen(settings.port);
 
+function historyResponse(pathname, req, res) {
+	var historyParts = pathname.split(/\//).slice(2);
+
+	if (historyParts.length === 0) {
+		res.writeHead(404);
+		res.end('A channel needs to be specified');
+	} else {
+		var channel = historyParts[0];
+		var start = 0;
+		var stop;
+
+		if (historyParts.length === 1) {
+			stop = -1;
+		} else {
+			stop = parseInt(historyParts[1], 10)-1;
+		}
+
+		if (stop < 0 || isNaN(stop)) {
+			stop = -1;
+		}
+
+		res.writeHead(200);
+		var historyClient = redis.createClient();
+		historyClient.lrange(settings.history + '-' + channel, start, stop, function(err, result) {
+			var i;
+			var numCompleted = 0;
+
+			var completed = function() {
+				numCompleted++;
+
+				if (numCompleted === result.length) {
+					res.end(']\n');
+				} else {
+					res.write(',\n');
+				}
+			};
+
+			res.write('[')
+			for (i = 0; i < result.length; i++) {
+				historyClient.hgetall(settings.messageHash + '-' + result[i], function(err, result) {
+					res.write(JSON.stringify(result, null, 2));
+
+					if (req.method === 'DELETE') {
+						// remove this entry
+						historyClient.del(settings.messageHash + '-' + result[i]);
+						// remove message id from the history list
+						historyClient.lrem(settings.history + '-' + channel, -1, result[i]);
+					}
+					completed();
+				});
+			};
+
+			if (result.length === 0) {
+				res.end(']\n');
+			}
+		});
+	}
+}
+
 // how to respond to http requests that aren't socket.io
 function handler(req, res) {
-	res.writeHead(200);
-	res.end('Connect via client');
+	var parsedURL = url.parse(req.url, true);
+	var pathname = parsedURL.pathname;
+	pathname = pathname.replace(/\/+$/, "");
 
-	// TODO:
-	// POST: HMAC calculation of (user, channel, issued, secret) -> hash
-	// GET: Chat History
-	// POST: Purge X least recent of chat history (has been archived)
+	if (pathname.indexOf('/hmac/') === 0) {
+		// reference for creating an hmac
+		var hmacParts = pathname.split(/\//).slice(2);
+
+		if (hmacParts.length < 4) {
+			res.writeHead(404);
+			res.end('Can only create hmac of salt + 3 fields');
+		} else {
+			res.writeHead(200);	
+			res.end(SessionController.createHash(hmacParts[1], hmacParts[2], hmacParts[3], hmacParts[0]));
+		}
+	} else if (req.url.indexOf('/history/') === 0) {
+		var user, channel, issued, signature;
+
+		user = parsedURL.query.user;
+		channel = parsedURL.query.channel;
+		issued = parsedURL.query.issued;
+		signature = parsedURL.query.signature;
+
+		// retrieve (GET) or purge (DELETE) chat history for a channel
+		// /history/channel
+		// /history/channel/length oldest to newest from 0 to stopIndex inclusive
+		if (SessionController.checkHash(signature, user, channel, issued)) {
+			historyResponse(pathname, req, res);
+		} else {
+			res.writeHead(403);
+			res.end('Authentication failed');
+		}
+	} else {
+		res.writeHead(200);
+		res.end('Connect via client');
+	}
 }
 
 // set up socket.io
@@ -38,17 +127,38 @@ function SessionController(userID, userName, channel) {
 	this.channel = channel;
 }
 
+SessionController.createHash = function(user, channel, issued, salt) {
+	var separator = '|';
+
+	// create a hash to verify that the user, channel and issued time are not forged
+	return crypto.createHmac('sha256', salt)
+		.update(user)
+		.update(separator)
+		.update(channel)
+		.update(separator)
+		.update(issued)
+		.digest('base64');
+};
+
+SessionController.checkHash = function(msgHash, user, channel, issued) {
+	// create a hash from the user, channel and issued time
+	msgHash = msgHash.replace(/ /, '+'); // in case URL encoding has turned + into space
+
+	var hash = SessionController.createHash(user, channel, issued, settings.secret);
+	
+	// ensure issued is a number
+	issued = parseInt(issued, 10);
+	return (hash === msgHash && (Date.now() - issued) < (settings.sessionLength * 60));
+};
+
 SessionController.createSession = function(msg) {
 	var sessionController, hash;
 
 	if (settings.secret) {
 		// we require authentication (a signature to make sure that we trust the connection info)
 
-		// create a hash from the user, channel and issued time
-		hash = Crypto.HMAC(Crypto.SHA256, msg.user + ',' + msg.channel + ',' + msg.issued, settings.secret);
-
-		// ensure the hash matches the one that was sent, and that it wasn't issued too long ago
-		if (hash === msg.hash && (Date.now - msg.sessionIssued) < (settings.sessionLength * 60)) {
+		// ensure a calculated hash matches the one that was sent, and that it wasn't issued too long ago
+		if (SessionController.checkHash(msg.hash, msg.user, msg.channel, msg.issued)) {
 			// create a session
 			sessionController = new SessionController(msg.user, msg.name, msg.channel);
 		} else {
@@ -61,7 +171,7 @@ SessionController.createSession = function(msg) {
 	}
 
 	return sessionController;
-}
+};
 
 SessionController.prototype.subscribe = function(socket, joinMsg) {
 	var session = this;
