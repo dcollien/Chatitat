@@ -3,7 +3,7 @@
         var container = this;
         var options = arguments[0];
 
-        // arguments (none)
+        // handle methods (none)
         if (typeof options === 'string') {
             return this;
         }
@@ -16,13 +16,11 @@
                 message: "No options specified"
             };
         }
-
         if (!options.userID || !options.channel) {
             throw {
                 message: "No user ID or channel specified"
             };
         }
-
         if (!options.host) {
             throw {
                 message: "No host specified"
@@ -32,23 +30,25 @@
         if (options.errorCallback) {
             errorHandler = options.errorHandler;
         }
-
         if (options.sendCallback) {
             sendHandler = options.sendCallback;
         }
-
         if (options.receiveCallback) {
             receiveHandler = options.receiveCallback;
         }
 
+        if (!options.rejoinMessage) {
+            options.rejoinMessage = ' reconnected.';
+        }
+        if (!options.joinMessage) {
+            options.joinMessage = ' connected.';
+        }
         if (!options.userName) {
             options.userName = options.userID;
         }
-
         if (!options.signature) {
             options.signature = '';
         }
-
 
         var $channel = $('<div class="chat-channel"></div>');
         $channel.append(
@@ -141,7 +141,15 @@
                                 }
                                 break;
                 case 'control': messageView.find('.chat-user').text(message.name);
-                                messageView.find('.chat-message').text(message.msg);
+
+                                if (message.msg === 'join') {
+                                    messageView.find('.chat-message').text(options.joinMessage);
+                                } else if (message.msg === 'rejoin') {
+                                    messageView.find('.chat-message').text(options.rejoinMessage);
+                                } else {
+                                    messageView.find('.chat-message').text(message.msg);
+                                }
+
                                 messageView.addClass('chat-control');
                                 break;
             }

@@ -50,10 +50,23 @@
     <script type="text/javascript">
         $('#start').click(function (argument) {
             $('#chat').chatitat({
+                // issued: "1333333333337", // timestamp at which the authentication was issued
+                // signature: "HASH", // a SHA256 HMAC of the server's secret and: userID + ',' + channel + ',' + issued
+                
                 userID: $('#username').val(),
                 userName: $('#username').val(),
                 host: 'http://localhost:8020',
-                channel: $('#channel').val()
+                channel: $('#channel').val(),
+                
+                errorCallback: function(msg, user, name, channel) {
+                    console.log('Error', msg, user, name, channel);
+                },
+                sendCallback: function(msg, user, name, channel) {
+                    console.log('Sending', msg, user, name, channel);
+                },
+                receiveCallback: function(msg, user, name, channel) {
+                    console.log('Receiving', msg, user, name, channel);
+                }
             });
         })
     </script>

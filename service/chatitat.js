@@ -15,6 +15,11 @@ app.listen(settings.port);
 function handler(req, res) {
 	res.writeHead(200);
 	res.end('Connect via client');
+
+	// TODO:
+	// POST: HMAC calculation of (user, channel, issued, secret) -> hash
+	// GET: Chat History
+	// POST: Purge X least recent of chat history (has been archived)
 }
 
 // set up socket.io
@@ -58,51 +63,29 @@ SessionController.createSession = function(msg) {
 	return sessionController;
 }
 
-SessionController.prototype.subscribe = function(socket) {
-	var current = this;
+SessionController.prototype.subscribe = function(socket, joinMsg) {
+	var session = this;
 
+	// upon receiving a message on the redis subscription client
 	this.sub.on('message', function(channel, message) {
+		// pass it on to the socket.io client
 		socket.emit(channel, message);
 	});
 
+	// upon receiving a new subscription
 	this.sub.on('subscribe', function(channel, count) {
-		var joinMessage = JSON.stringify({
+		// publish a join message
+		var joinMessage = {
 			action: 'control',
-			user: current.user,
-			name: current.name,
-			msg: ' came online.'
-		});
-
-		current.publish(joinMessage);
+			user: session.user,
+			name: session.name,
+			msg: joinMsg,
+			timestamp: Date.now()
+		};
+		session.publish(joinMessage);
 	});
 
-	this.sub.subscribe(settings.subscription + '-' + this.channel);
-};
-
-SessionController.prototype.rejoin = function(socket, message) {
-	this.sub.on('message', function(channel, message) {
-		socket.emit(channel, message);
-	});
-
-	var current = this;
-	this.sub.on('subscribe', function(channel, count) {
-		var rejoin = JSON.stringify({
-			action: 'control',
-			user: current.user,
-			name: current.name,
-			msg: ' came back online.' }
-		);
-
-		current.publish(rejoin);
-		var reply = JSON.stringify({
-			action: 'message',
-			user: message.user,
-			name: current.name,
-			msg: message.msg
-		});
-		current.publish(reply);
-	});
-
+	// subscribe to events on this channel
 	this.sub.subscribe(settings.subscription + '-' + this.channel);
 };
 
@@ -125,13 +108,12 @@ SessionController.prototype.publish = function(message) {
 		var key;
 
 		// push this message to the chat channel history
-		redis_client.rpush(settings.history + '-' + channel, messageId, redis.print);
-		console.log('RPUSH ' + settings.history + '-' + channel + ' ' + messageId);
+		redis_client.rpush(settings.history + '-' + channel, messageId);
+
 		// store the message data by messageId
 		for (key in message) {
 			if (message.hasOwnProperty(key)) {
-				redis_client.hset(settings.messageHash + '-' + messageId, key, message[key].toString(), redis.print);
-				console.log('HSET ' + settings.messageHash + '-' + messageId + ' ' + key + ' ' + message[key].toString());
+				redis_client.hset(settings.messageHash + '-' + messageId, key, message[key].toString());
 			}
 		}
 	});
@@ -152,24 +134,26 @@ io.sockets.on('connection', function (socket) {
 
 		socket.get('sessionController', function(err, sessionController) {
 			if (sessionController === null) {
-				// not logged in
-				var newSessionController = SessionController.createSession(msg);
-				socket.set('sessionController', newSessionController);
+				// not logged in, try to recreate the session
+				sessionController = SessionController.createSession(msg);
+				socket.set('sessionController', sessionController);
 
-				if (newSessionController !== null) {
-					newSessionController.rejoin(socket, msg);
+				if (sessionController !== null) {
+					sessionController.subscribe(socket, 'rejoin');
 				} else {
 					socket.emit('error', 'Unable to authenticate');
 				}
-			} else {
-				// send message
-				var reply = {
-					action: 'message',
-					user: msg.user,
-					name: msg.name,
-					msg: msg.msg,
-					timestamp: Date.now()
-				};
+			}
+
+			// send message
+			var reply = {
+				action: 'message',
+				user: msg.user,
+				name: msg.name,
+				msg: msg.msg,
+				timestamp: Date.now()
+			};
+			if (sessionController !== null) {
 				sessionController.publish(reply);
 			}
 		});
@@ -181,7 +165,7 @@ io.sockets.on('connection', function (socket) {
 		socket.set('sessionController', sessionController);
 
 		if (sessionController !== null) {
-			sessionController.subscribe(socket);
+			sessionController.subscribe(socket, 'join');
 		} else {
 			socket.emit('error', 'Unable to authenticate');
 		}
