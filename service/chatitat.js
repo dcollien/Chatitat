@@ -11,6 +11,81 @@ var settings = require('./settings');
 
 // start server
 app.listen(settings.port);
+console.log('Listening on port ' + settings.port);
+
+
+function getOnlineUsers(redisClient, channel, callback) {
+	// retrieve a list of online users
+	redisClient.smembers(settings.userSet + '-' + channel, function(err, members) {
+		var onlineUsers = [];
+		var i;
+		var numCompleted = 0;
+
+		var completed = function() {
+			numCompleted++;
+
+			if (numCompleted === members.length) {
+				callback(onlineUsers);
+			}
+		};
+
+		if (!members || members.length === 0) {
+			callback([]);
+		} else {
+			for (i = 0; i != members.length; ++i) {
+				var userID = members[i];
+				redisClient.hgetall(settings.userSession + '-' + userID + '-' + channel, function(err, userData) {
+					onlineUsers.push({
+						user: userData.user,
+						name: userData.name,
+						connectedAt: userData.connectedAt
+					});
+					completed();
+				});
+			}
+		}
+	});
+}
+
+function getHistory(historyClient, channel, start, stop, callback, isDeleting) {
+	// retrieve the history buffer for a channel
+	historyClient.lrange(settings.history + '-' + channel, start, stop, function(err, result) {
+		var i;
+		var numCompleted = 0;
+		var historyList = [];
+
+		var completed = function() {
+			numCompleted++;
+
+			if (numCompleted === result.length) {
+				callback(historyList);
+			}
+		};
+
+		if (!result) {
+			callback([]);
+			return;
+		}
+
+		for (i = 0; i != result.length; i++) {
+			historyClient.hgetall(settings.messageHash + '-' + result[i], function(err, historyItem) {
+				historyList.push(historyItem);
+
+				if (isDeleting) {
+					// remove this entry
+					historyClient.del(settings.messageHash + '-' + result[i]);
+					// remove message id from the history list
+					historyClient.lrem(settings.history + '-' + channel, -1, result[i]);
+				}
+				completed();
+			});
+		};
+
+		if (result.length === 0) {
+			callback(historyList);
+		}
+	});
+}
 
 // responds with a json encoding of the chat history for a channel
 function historyResponse(historyParts, req, res) {
@@ -33,45 +108,19 @@ function historyResponse(historyParts, req, res) {
 			stop = -1;
 		}
 
-		res.writeHead(200);
+		// protected by HMAC signing, can allow any origin
+		res.writeHead(200, {
+			'Content-Type': 'application/json',
+			'Access-Control-Allow-Origin': '*'
+		});
 
 		// create a redis client to connect
 		var historyClient = redis.createClient();
-		historyClient.lrange(settings.history + '-' + channel, start, stop, function(err, result) {
-			var i;
-			var numCompleted = 0;
 
-			var completed = function() {
-				numCompleted++;
-
-				if (numCompleted === result.length) {
-					res.end(']\n');
-					historyClient.quit();
-				} else {
-					res.write(',\n');
-				}
-			};
-
-			res.write('[')
-			for (i = 0; i < result.length; i++) {
-				historyClient.hgetall(settings.messageHash + '-' + result[i], function(err, result) {
-					res.write(JSON.stringify(result, null, 2));
-
-					if (req.method === 'DELETE') {
-						// remove this entry
-						historyClient.del(settings.messageHash + '-' + result[i]);
-						// remove message id from the history list
-						historyClient.lrem(settings.history + '-' + channel, -1, result[i]);
-					}
-					completed();
-				});
-			};
-
-			if (result.length === 0) {
-				res.end(']\n');
-				historyClient.quit();
-			}
-		});
+		getHistory(historyClient, channel, start, stop, function(result) {
+			res.end(JSON.stringify(result, null, 2));
+			historyClient.quit();
+		}, req.method === 'DELETE');
 	}
 }
 
@@ -89,10 +138,13 @@ function handler(req, res) {
 			res.writeHead(404);
 			res.end('Can only create hmac of salt + 3 fields');
 		} else {
-			res.writeHead(200);	
+			res.writeHead(200, {
+				'Content-Type': 'text/plain',
+				'Access-Control-Allow-Origin': '*'
+			});
 			res.end(SessionController.createHash(hmacParts[1], hmacParts[2], hmacParts[3], hmacParts[0]));
 		}
-	} else if (req.url.indexOf('/history/') === 0) {
+	} else if (pathname.indexOf('/history/') === 0) {
 		// report a channel's message history
 
 		var user, channel, issued, signature;
@@ -103,17 +155,68 @@ function handler(req, res) {
 		issued = parsedURL.query.issued;
 		signature = parsedURL.query.signature;
 
-		// retrieve (GET) or purge (DELETE) chat history for a channel
-		// /history/channel
-		// /history/channel/length oldest to newest from 0 to stopIndex inclusive
-		if (!settings.secret) {
-			historyResponse(historyParts, req, res);
-		} else if (SessionController.checkHash(signature, user, channel, issued)) {
-			historyResponse(historyParts, req, res);
+		if (!channel) {
+			res.writeHead(404);
+			res.end('No channel specified');
 		} else {
-			res.writeHead(403);
-			res.end('Authentication failed');
+			// retrieve (GET) or purge (DELETE) chat history for a channel
+			// /history/channel
+			// /history/channel/length oldest to newest from 0 to stopIndex inclusive
+			if (!settings.secret) {
+				historyResponse(historyParts, req, res);
+			} else if (SessionController.checkHash(signature, user, channel, issued)) {
+				historyResponse(historyParts, req, res);
+			} else {
+				res.writeHead(403);
+				res.end('Authentication failed');
+			}
 		}
+	} else if (pathname.indexOf('/list/') === 0) {
+		// list online users
+		// /list/channel
+		
+		var redisClient = redis.createClient();
+		var listParts = pathname.split(/\//).slice(2);
+		var channel = listParts[0];
+		var issued = parsedURL.query.issued;
+		var signature = parsedURL.query.signature;
+
+		if (!channel) {
+			res.writeHead(404);
+			res.end('No channel specified');
+			redisClient.quit();
+		} else {
+			if (!settings.secret) {
+				getOnlineUsers(redisClient, channel, function(users) {
+					res.writeHead(200, {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*'
+					});
+					res.end(
+						JSON.stringify(users, null, 2)
+					);
+
+					redisClient.quit();
+				});
+			} else if (SessionController.checkHash(signature, user, channel, issued)) {
+				getOnlineUsers(redisClient, channel, function(users) {
+					res.writeHead(200, {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*'
+					});
+					res.end(
+						JSON.stringify(users, null, 2)
+					);
+
+					redisClient.quit();
+				});
+			} else {
+				res.writeHead(403);
+				res.end('Authentication failed');
+				redisClient.quit();
+			}
+		}
+
 	} else {
 		res.writeHead(200);
 		res.end('Connect via a chat client');
@@ -134,6 +237,7 @@ function SessionController(userID, userName, channel) {
 	this.user = userID;
 	this.name = userName;
 	this.channel = channel;
+	this.connectedAt = Date.now();
 }
 
 SessionController.createHash = function(user, channel, issued, salt) {
@@ -186,13 +290,13 @@ SessionController.prototype.subscribe = function(socket, joinMsg) {
 	var session = this;
 
 	// upon receiving a message on the redis subscription client
-	this.sub.on('message', function(channel, message) {
+	this.sub.on('message', function(subscription, message) {
 		// pass it on to the socket.io client
-		socket.emit(channel, message);
+		socket.emit(subscription, message);
 	});
 
 	// upon receiving a new subscription
-	this.sub.on('subscribe', function(channel, count) {
+	this.sub.on('subscribe', function(subscription, count) {
 		// publish a join message
 		var joinMessage = {
 			action: 'control',
@@ -202,6 +306,14 @@ SessionController.prototype.subscribe = function(socket, joinMsg) {
 			timestamp: Date.now()
 		};
 		session.publish(joinMessage);
+		
+		// save session data to redis
+		session.pub.hset(settings.userSession + '-' + session.user + '-' + session.channel, 'user', session.user);
+		session.pub.hset(settings.userSession + '-' + session.user + '-' + session.channel, 'name', session.name);
+		session.pub.hset(settings.userSession + '-' + session.user + '-' + session.channel, 'connectedAt', session.connectedAt.toString());
+
+		// add user to the online list
+		session.pub.sadd(settings.userSet + '-' + session.channel, session.user);
 	});
 
 	// subscribe to events on this channel
@@ -239,6 +351,9 @@ SessionController.prototype.publish = function(message) {
 };
 
 SessionController.prototype.destroyRedis = function() {
+	this.pub.srem(settings.userSet + '-' + this.channel, this.user);
+	this.pub.del(settings.userSession + '-' + this.user + '-' + this.channel);
+
 	if (this.sub !== null) this.sub.quit();
 	if (this.pub !== null) this.pub.quit();
 };
@@ -289,6 +404,32 @@ io.sockets.on('connection', function (socket) {
 		} else {
 			socket.emit('error', 'Unable to authenticate');
 		}
+	});
+
+	// on requesting a list of online users in the channel
+	socket.on('list', function(data) {
+		socket.get('sessionController', function(err, session) {
+			// send to the client
+			getOnlineUsers(session.pub, session.channel, function(users) {	
+				socket.emit(settings.subscription + '-' + session.channel, JSON.stringify({
+					action: 'list',
+					msg: users
+				}));
+			});
+		});
+	});
+
+	// on requesting chat history buffer
+	socket.on('history', function(data) {
+		socket.get('sessionController', function(err, session) {
+			getHistory(session.pub, session.channel, 0, -1, function(result) {
+				// send to the client
+				socket.emit(settings.subscription + '-' + session.channel, JSON.stringify({
+					action: 'history',
+					msg: result
+				}));
+			});
+		});
 	});
 
 	socket.on('disconnect', function() {

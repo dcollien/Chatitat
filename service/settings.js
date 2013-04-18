@@ -6,5 +6,7 @@ module.exports = {
     messageId: 'chat-id', // incrementing unique id for messages
     messageHash: 'chat-message', // prefix for redis chat message store
     history: 'chat-history', // prefix for redis channel history
-    subscription: 'chat' // prefix for redis channel subscription
+    subscription: 'chat', // prefix for redis channel subscription
+    userSet: 'chat-users', // prefix for redis channel user set
+    userSession: 'chat-session' // prefix for user session data
 };

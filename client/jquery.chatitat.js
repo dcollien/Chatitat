@@ -3,13 +3,19 @@
         var container = this;
         var options = arguments[0];
 
-        // handle methods (none)
+        // handle methods
         if (typeof options === 'string') {
+            var socket = container.data('socket');
+            if (options === 'listUsers') {
+                if (socket) {
+                    socket.emit('list', {});
+                }
+            }
             return this;
         }
 
         // start Init
-        var errorHandler, receiveHandler, sendHandler
+        var errorHandler, receiveHandler, sendHandler, controlHandler, listHandler, joinHandler, disconnectHandler;
 
         if (!options) {
             throw {
@@ -35,6 +41,18 @@
         }
         if (options.receiveCallback) {
             receiveHandler = options.receiveCallback;
+        }
+        if (options.controlCallback) {
+            controlHandler = options.controlCallback;
+        }
+        if (options.joinCallback) {
+            joinHandler = options.joinCallback;
+        }
+        if (options.disconnectCallback) {
+            disconnectHandler = options.disconnectCallback;
+        }
+        if (options.listCallback) {
+            listHandler = options.listCallback;
         }
         
         if (!options.rejoinMessage) {
@@ -84,8 +102,10 @@
         var user = options.userID;
         var issued = options.issued;
 
+        container.data('socket', socket);
+
         // send join message
-        socket.emit('join', $.toJSON({
+        socket.emit('join', JSON.stringify({
           user: user, 
           name: name,
           channel: channel,
@@ -103,17 +123,32 @@
 
         // handler for callback
         socket.on('chat-' + channel , function (msg) {
-            var message = $.evalJSON(msg);
+            console.log(msg);
+            var message = JSON.parse(msg);
 
-            if (receiveHandler) {
+            if (message.action === 'message' && receiveHandler) {
                 receiveHandler(message.msg, message.user, message.name, channel);
+            } else if (message.action === 'control') {
+                if (controlHandler) {
+                    controlHandler(message, channel);
+                }
+                if (joinHandler && message.user === user && (message.msg === 'join' || message.msg === 'rejoin')) {
+                    joinHandler(channel);
+                }
+                if (disconnectHandler && message.user === user && message.msg === 'disconnect') {
+                    disconnectHandler(channel);
+                }
+            } else if (message.action === 'list' && listHandler) {
+                listHandler(message.msg, channel);
             }
             
             var action = message.action;
             var struct = container.find('li.chat-' + action + ':first');
             
             if (struct.length < 1) {
-                console && console.log("Could not handle: " + message);
+                if (action !== 'list' && action !== 'history') {
+                    console && console.log("Could not handle: " + message);
+                }
                 return;
             }
             
@@ -182,7 +217,7 @@
           event.preventDefault();
           var input = $(this).find(':input');
           var msg = input.val();
-          socket.emit('chat', $.toJSON({
+          socket.emit('chat', JSON.stringify({
             action: 'message',
             user: user,
             name: name,

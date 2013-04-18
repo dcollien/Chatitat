@@ -2,7 +2,6 @@
 <html>
 <head>
     <script src='//ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js'></script>
-    <script src='//jquery-json.googlecode.com/files/jquery.json-2.2.min.js'></script>
     <script src='//datejs.googlecode.com/svn/trunk/build/date.js'></script>
     <script src="socket.io.js"></script>
     <script src="jquery.chatitat.js"></script>
@@ -35,7 +34,7 @@
 </head>
 <body>
     <div id="start_area">
-        <input type="text" id="username" placeholder="Username"><br/>
+        <input type="text" id="username" placeholder="Username" value="Hermoine"><br/>
         <select id="channel">
             <option value="channel1">Channel 1</option>
             <option value="channel2">Channel 2</option>
@@ -46,11 +45,48 @@
         <br/><br/>
     </div>
 
+
+    <div id="chatHistory"></div>
+    <button type="button" id="updateHistory">Show/Update History</button>
+
+    <ul id="onlineList">
+    </ul>
+
     <div id="chat" style="width: 300px; height: 400px;">
     </div>
 
     <script type="text/javascript">
-        $('#start').click(function (argument) {
+        var onlineUsers = {};
+
+        function updateOnlineList() {
+            $('#onlineList').empty();
+            for (var user in onlineUsers) {
+                $('#onlineList').append($('<li>').text(onlineUsers[user].name));
+            }
+        };
+
+        $('#updateHistory').click(function () {
+            $.ajax({
+                url: 'http://localhost:8020/history/' + $('#channel').val(),
+                method: 'GET',
+                dataType: 'json'
+            }).done(function(data) {
+                // display chat history as text
+                $('#chatHistory').empty();
+                for (var i in data) {
+                    if (data[i].action === 'message') {
+                        $('#chatHistory').append( 
+                            $('<div style="border-bottom: 1px solid #ccc">')
+                                .append($('<div style="font-weight: bold">').text(data[i].name))
+                                .append($('<div>').text(data[i].msg))
+                                .append($('<div style="text-align: right">').text(new Date(parseInt(data[i].timestamp, 10)).toString("HH:mm:ss dddd")))
+                        );
+                    }
+                }
+            });
+        });
+
+        $('#start').click(function () {
             $('#start_area').hide();
             $('#chat').chatitat({
                 // issued: "1333333333337", // timestamp at which the authentication was issued
@@ -68,6 +104,41 @@
                 },
                 receiveCallback: function(msg, user, name, channel) {
                     console.log('Receiving', msg, user, name, channel);
+                },
+                joinCallback: function(channel) {
+                    console.log('You have joined the channel', channel);
+
+                    // get a list of online users
+                    $('#chat').chatitat('listUsers');
+                },
+                disconnectCallback: function(channel) {
+                    console.log('You have disconnected from the channel', channel);
+                },
+                listCallback: function(users, channel) {
+                    console.log('Online users are', users);
+
+                    // update online users
+                    onlineUsers = {};
+                    for (var i = 0; i != users.length; ++i) {
+                        onlineUsers[users[i].user] = users[i];
+                    }
+                    updateOnlineList();
+                },
+                controlCallback: function(response, channel) {
+                    // received a 'control', 'list', or 'history' action response
+                    console.log('Received control message', response, channel);
+
+                    // received a control message of a user joining, rejoining or disconnecting
+                    if (response.msg === 'join' || response.msg === 'rejoin') {
+                        onlineUsers[response.user] = {
+                            name: response.name,
+                            connectedAt: response.timestamp
+                        };
+                        updateOnlineList();
+                    } else if (response.msg === 'disconnect') {
+                        delete onlineUsers[response.user];
+                        updateOnlineList();
+                    }
                 }
             });
         })

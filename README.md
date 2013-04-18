@@ -30,7 +30,7 @@ in the client/ directory
 Setting up the Client
 -----------------------
 
-The browser client is a jQuery plugin. It requires jQuery, <a href="http://jquery-json.googlecode.com/">JQuery JSON</a> and Socket.io (the socket.io-client js can be used, or the version served by the service at /socket.io/socket.io.js)
+The browser client is a jQuery plugin. It requires jQuery and Socket.io (the socket.io-client js can be used, or the version served by the service at /socket.io/socket.io.js)
 
 The jQuery plugin can be attached to an element as follows:
 
