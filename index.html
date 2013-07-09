@@ -30,37 +30,142 @@
 
       </header>
       <section>
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+        <h1>
+<a name="chat-based-on-nodejs-using-redis-pubsub--socketio" class="anchor" href="#chat-based-on-nodejs-using-redis-pubsub--socketio"><span class="octicon octicon-link"></span></a>Chat based on Node.js using Redis Pub/Sub + socket.io</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<p>A simple real-time chat service and jQuery plugin using redis Pub/Sub and socket.io.</p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
+<p>Supports HMAC authentication, multiple chat rooms and chat history.</p>
+
+<h2>
+<a name="how-to-get-the-application-running" class="anchor" href="#how-to-get-the-application-running"><span class="octicon octicon-link"></span></a>How to get the application running</h2>
+
+<ol>
+<li>Install everything</li>
+</ol><ul>
+<li>
+<a href="http://redis.io">Redis</a> must be installed and running.</li>
+<li>
+<a href="http://nodejs.org">Node.js</a> must be installed</li>
+<li>Node.js plugin <a href="http://socket.io">socket.io</a> installed (npm install socket.io).</li>
+<li>Node.js plugin <a href="https://github.com/mranney/node_redis">redis</a> installed (npm install hiredis redis).</li>
+</ul><ol>
+<li>Start the service via:</li>
+</ol><p><code>$ node chatitat.js</code></p>
+
+<ol>
+<li>Start the demonstration client via:</li>
+</ol><p><code>$ python -m SimpleHTTPServer</code></p>
+
+<p>in the client/ directory</p>
+
+<h2>
+<a name="setting-up-the-client" class="anchor" href="#setting-up-the-client"><span class="octicon octicon-link"></span></a>Setting up the Client</h2>
+
+<p>The browser client is a jQuery plugin. It requires jQuery and Socket.io (the socket.io-client js can be used, or the version served by the service at /socket.io/socket.io.js)</p>
+
+<p>The jQuery plugin can be attached to an element as follows:</p>
+
+<pre><code>$('#chat').chatitat({
+    // optional authentication information (used if a shared secret is supplied to the service)
+    issued: "1333333333337", // timestamp at which the authentication was issued
+    signature: "HASH", // a base64 digest of a SHA256 HMAC using
+                       // the server's secret salt and userID + '|' + channel + '|' + issued
+
+    // connection
+    userID: 'fred.flintstone',
+    userName: 'Fred Flintstone',
+    host: 'http://localhost:8020',
+    channel: 'bedrock',
+
+    // callbacks, for convenience
+    errorCallback: function(msg, user, name, channel) {
+        console.log('Error', msg, user, name, channel);
+    },
+    sendCallback: function(msg, user, name, channel) {
+        console.log('Sending', msg, user, name, channel);
+    },
+    receiveCallback: function(msg, user, name, channel) {
+        console.log('Receiving', msg, user, name, channel);
+    }
+});
 </code></pre>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<h2>
+<a name="authentication" class="anchor" href="#authentication"><span class="octicon octicon-link"></span></a>Authentication</h2>
 
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<p>The chat service uses a shared secret between the server hosting the browser client page and the chat service. This shared secret is never exposed to the client and is used as a salt to hash the user id, channel and issued timestamp using a SHA256 HMAC.</p>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<p>This hash signature is encoded as base64 and sent to the client, which can use this hash to prove the user id and channel are indeed those issued by the server (and not forgeries). The hash expires after the sessionLength specified in the service's settings.js file. This is policed by sending the time of issue as a unix timestamp (which is also part of the signature hash).</p>
 
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+<p>The shared secret is defined in settings.js:</p>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p>e.g.</p>
 
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<pre><code>module.exports = {
+    secret: 'some long secret shared key for authenticating sessions',
+    sessionLength: 60*60*24, // 24h time out
+    port: 8020,
+    messageId: 'chat-id', // incrementing unique id for messages
+    messageHash: 'chat-message', // prefix for redis chat message store
+    history: 'chat-history', // prefix for redis channel history
+    subscription: 'chat' // prefix for redis channel subscription
+};
+</code></pre>
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<h2>
+<a name="rest-api" class="anchor" href="#rest-api"><span class="octicon octicon-link"></span></a>REST API</h2>
 
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
+<p>The chat service also has a REST API. This can be used for:</p>
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<ul>
+<li>Creating an HMAC from user, channel and issued stamp</li>
+<li>Retrieving a channel's chat history for archival</li>
+<li>Deleting part of a channel's chat history which has been archived (to free memory)</li>
+</ul><h4>
+<a name="hmac" class="anchor" href="#hmac"><span class="octicon octicon-link"></span></a>HMAC</h4>
+
+<p>The path:
+<code>/hmac/salt/user_id/channel/issued_timestamp/</code>
+will generate a base64 HMAC signature for a given salt (secret), given the user, channel and issued timestamp</p>
+
+<p>This should be used over HTTPS, or as a reference implementation to ensure the secret salt is not stolen.
+The signature is generated by combining the <code>user_id + '|' + channel + '|' + issued_timestamp</code> together (Note: | is used as a separator), which is passed through a SHA256 HMAC. The digest is read as base64.</p>
+
+<h4>
+<a name="history" class="anchor" href="#history"><span class="octicon octicon-link"></span></a>History</h4>
+
+<p>The path:
+<code>/history/channel</code>
+will list the entire chat history buffer for the given channel as JSON.</p>
+
+<p><code>/history/channel/10</code>
+will list the 10 oldest history entries in the channel history buffer.</p>
+
+<hr><p>This requires the same HMAC authentication via query string. e.g.
+<code>/history/channel?user=fred.flintstone&amp;issued=1333333333337&amp;signature=HMAC+HASH</code></p>
+
+<p><b>Note:</b> If a DELETE instead of a GET request is used, the history will be deleted.
+<code>/history/channel/10</code>
+will delete the 10 oldest history entries in the buffer.</p>
+
+<h2>
+<a name="faq" class="anchor" href="#faq"><span class="octicon octicon-link"></span></a>FAQ</h2>
+
+<h4>
+<a name="why-is-it-called-chatitat" class="anchor" href="#why-is-it-called-chatitat"><span class="octicon octicon-link"></span></a>Why is it called Chatitat?</h4>
+
+<p>I don't know. Can you think of a better name?</p>
+
+<h4>
+<a name="why-arent-there-more-faqs" class="anchor" href="#why-arent-there-more-faqs"><span class="octicon octicon-link"></span></a>Why aren't there more FAQs?</h4>
+
+<p>No-one has asked any questions yet.</p>
+
+<h1>
+<a name="credits" class="anchor" href="#credits"><span class="octicon octicon-link"></span></a>Credits</h1>
+
+<p>This was loosely based off <a href="https://github.com/steffenwt/nodejs-pub-sub-chat-demo">nodejs-pub-sub-chat-demo</a>.</p>
       </section>
       <footer>
         <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
